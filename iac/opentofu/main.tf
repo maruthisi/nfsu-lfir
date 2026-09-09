@@ -1,17 +1,19 @@
-# Config is split: config.yaml (shared), source.yaml (malicious senders),
-# mirror.yaml (receivers under attack). Scale each independently.
+# Config is split: config.yaml (shared), source.yaml (senders), mirror.yaml (receivers).
+# Shared secrets (keys/, .env) live at the REPO ROOT, two levels up from this module.
 locals {
   cfg = yamldecode(file("${path.module}/config.yaml"))
   src = yamldecode(file("${path.module}/source.yaml")) # senders
   mir = yamldecode(file("${path.module}/mirror.yaml")) # receivers
 
-  sim_pubkey  = trimspace(file("${path.module}/keys/sim_key.pub"))
+  keys_dir = "${path.module}/../../keys" # keys live at the repo root
+
+  sim_pubkey  = trimspace(file("${local.keys_dir}/sim_key.pub"))
   mgmt_pubkey = trimspace(var.mgmt_ssh_pubkey)
 
   # Root logins on every VM: your management key plus anyone in keys/admins.txt.
   admin_keys = concat(
     [local.mgmt_pubkey],
-    [for line in split("\n", file("${path.module}/keys/admins.txt")) :
+    [for line in split("\n", file("${local.keys_dir}/admins.txt")) :
     trimspace(line) if trimspace(line) != "" && !startswith(trimspace(line), "#")],
   )
 }
@@ -22,7 +24,7 @@ resource "random_password" "root" {
   special = true
 }
 
-# ---- MIRROR machines (under attack; students investigate these) -------------
+# ---- MIRROR machines (receivers; students investigate these) ----------------
 resource "linode_instance" "mirror" {
   count           = local.mir.count
   label           = format("mirror-%02d", count.index + 1)
@@ -35,12 +37,14 @@ resource "linode_instance" "mirror" {
   metadata {
     user_data = base64encode(templatefile("${path.module}/templates/mirror-init.yaml.tftpl", {
       sim_pubkey     = local.sim_pubkey
-      student_pubkey = trimspace(file("${path.module}/keys/students/${format("mirror-%02d", count.index + 1)}.pub"))
+      student_pubkey = trimspace(file("${local.keys_dir}/students/${format("mirror-%02d", count.index + 1)}.pub"))
     }))
   }
 }
 
-# ---- SOURCE machines (malicious senders, spread across non-India regions) ----
+# ---- SOURCE machines (senders) ----------------------------------------------
+# Bare VMs on purpose: the file copy + timing is done by the Ansible playbook,
+# NOT baked into the image. Root access comes from admin_keys.
 resource "linode_instance" "source" {
   count           = local.src.count
   label           = format("source-%02d", count.index + 1)
@@ -51,20 +55,36 @@ resource "linode_instance" "source" {
   authorized_keys = local.admin_keys
 
   metadata {
-    user_data = base64encode(templatefile("${path.module}/templates/source-init.yaml.tftpl", {
-      filename        = local.cfg.file_transfer.filename
-      duration        = local.cfg.simulation.duration_seconds
-      min             = local.cfg.file_transfer.min_interval_seconds
-      max             = local.cfg.file_transfer.max_interval_seconds
-      dest_dir        = local.cfg.file_transfer.dest_dir
-      private_key_b64 = base64encode(file("${path.module}/keys/sim_key"))
-      drop_sh_b64     = base64encode(file("${path.module}/scripts/drop.sh"))
-      setup_once_b64  = base64encode(file("${path.module}/scripts/setup_once.sh"))
-      payload_b64     = base64encode(file("${path.module}/malicious_test.txt"))
-      # receiver (mirror) PUBLIC IPs, one per line -> /etc/simulation/targets.txt
-      targets_b64 = base64encode(join("\n", [for m in linode_instance.mirror : one(m.ipv4)]))
-    }))
+    user_data = base64encode(file("${path.module}/templates/source-init.yaml"))
   }
+}
+
+# ---- Ansible inventory: regenerated on every apply, from the real IPs --------
+resource "local_file" "ansible_hosts" {
+  filename = "${path.module}/../ansible/inventory/hosts.yml"
+  content = yamlencode({
+    all = {
+      vars = {
+        ansible_user                 = "root"
+        ansible_ssh_private_key_file = "~/.ssh/id_ed25519"
+        ansible_ssh_common_args      = "-o StrictHostKeyChecking=no"
+      }
+      children = {
+        sources = {
+          hosts = { for s in linode_instance.source : s.label => {
+            ansible_host = one(s.ipv4)
+            region       = s.region
+          } }
+        }
+        mirrors = {
+          hosts = { for m in linode_instance.mirror : m.label => {
+            ansible_host = one(m.ipv4)
+            region       = local.mir.region
+          } }
+        }
+      }
+    }
+  })
 }
 
 # ---- Hand-out inventory (label / role / region / public IP) -----------------

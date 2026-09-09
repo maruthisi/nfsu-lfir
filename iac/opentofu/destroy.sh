@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Reliable teardown. `terraform destroy` needs the Events token scope and 401s
 # without it; this deletes all source-*/mirror-* Linodes via the API (needs only
-# Linodes = Read/Write), then clears Terraform state so the next apply is clean.
+# Linodes = Read/Write), clears Terraform state, and empties the Ansible inventory.
 set -u
-cd "$(dirname "$0")"
-source .env
+cd "$(dirname "$0")"                 # iac/opentofu
+source ../../.env                    # shared secrets live at the repo root
 TOKEN="$TF_VAR_linode_token"
 
 curl -s -H "Authorization: Bearer $TOKEN" \
@@ -21,5 +21,20 @@ for x in d.get("data",[]):
 done
 
 terraform state rm linode_instance.source linode_instance.mirror 2>/dev/null || true
-rm -f inventory.csv
+rm -f inventory.csv handout.csv
+
+# Empty the Ansible inventory so it holds no stale IPs after teardown.
+cat > ../ansible/inventory/hosts.yml <<'YML'
+all:
+  vars:
+    ansible_user: root
+    ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+  children:
+    sources:
+      hosts: {}
+    mirrors:
+      hosts: {}
+YML
+echo "ansible inventory emptied."
 echo "teardown complete."

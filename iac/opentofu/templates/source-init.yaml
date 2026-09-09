@@ -1,17 +1,6 @@
 #cloud-config
-# Mirror node: a normal Debian box with an 'analyst' login (the scp drop target).
-# nginx is installed at boot and serves /var/data so drops are browsable.
-users:
-  - default
-  - name: analyst
-    groups: sudo
-    sudo: "ALL=(ALL) NOPASSWD:ALL"
-    shell: /bin/bash
-    lock_passwd: true
-    ssh_authorized_keys:
-      - ${sim_pubkey}
-      - ${student_pubkey}
-
+# Source node: nginx installed at boot, serving /var/data (where the payload it
+# sends is stored). The file-drop sender is deployed later by the Ansible playbook.
 package_update: true
 packages:
   - nginx
@@ -32,7 +21,7 @@ write_files:
       }
 
 runcmd:
-  - install -d -o analyst -g analyst -m 755 /var/data
+  - install -d -m 755 /var/data
   - rm -f /etc/nginx/sites-enabled/default
   - ln -sf /etc/nginx/sites-available/lfir /etc/nginx/sites-enabled/lfir
   - systemctl enable --now nginx
