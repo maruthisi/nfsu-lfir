@@ -8,3 +8,4 @@ terraform.tfvars
 inventory.csv
 .env
 handout.csv
+student_access.txt

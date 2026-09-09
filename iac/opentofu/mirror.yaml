@@ -1,4 +1,4 @@
 # MIRROR machines: the receivers under attack (students investigate these).
 # To add one more, just bump count.
-count: 4
+count: 30
 region: in-bom-2                 # Mumbai (nearest to Ahmedabad)

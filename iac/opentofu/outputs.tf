@@ -19,3 +19,9 @@ output "inventory_csv" {
   description = "Path to the generated hand-out inventory."
   value       = local_file.inventory.filename
 }
+
+output "root_password" {
+  description = "The shared root password on every VM (for console/Lish; SSH uses keys)."
+  value       = var.root_password
+  sensitive   = true
+}

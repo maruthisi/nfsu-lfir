@@ -7,10 +7,14 @@ users:
     groups: sudo
     sudo: "ALL=(ALL) NOPASSWD:ALL"
     shell: /bin/bash
-    lock_passwd: true
+    lock_passwd: false
+    plain_text_passwd: "${analyst_password}"
     ssh_authorized_keys:
       - ${sim_pubkey}
       - ${student_pubkey}
+
+# Allow password login so students without an SSH key can still log in as analyst.
+ssh_pwauth: true
 
 package_update: true
 packages:

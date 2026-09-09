@@ -18,12 +18,6 @@ locals {
   )
 }
 
-# Root password the Linode API requires; we log in with keys, so it's random.
-resource "random_password" "root" {
-  length  = 32
-  special = true
-}
-
 # ---- MIRROR machines (receivers; students investigate these) ----------------
 resource "linode_instance" "mirror" {
   count           = local.mir.count
@@ -31,13 +25,14 @@ resource "linode_instance" "mirror" {
   region          = local.mir.region
   type            = local.cfg.simulation.instance_type
   image           = local.cfg.simulation.image
-  root_pass       = random_password.root.result
+  root_pass       = var.root_password
   authorized_keys = local.admin_keys
 
   metadata {
     user_data = base64encode(templatefile("${path.module}/templates/mirror-init.yaml.tftpl", {
-      sim_pubkey     = local.sim_pubkey
-      student_pubkey = trimspace(file("${local.keys_dir}/students/${format("mirror-%02d", count.index + 1)}.pub"))
+      sim_pubkey       = local.sim_pubkey
+      student_pubkey   = trimspace(file("${local.keys_dir}/students/${format("mirror-%02d", count.index + 1)}.pub"))
+      analyst_password = var.analyst_password
     }))
   }
 }
@@ -48,10 +43,10 @@ resource "linode_instance" "mirror" {
 resource "linode_instance" "source" {
   count           = local.src.count
   label           = format("source-%02d", count.index + 1)
-  region          = element(local.src.regions, count.index % length(local.src.regions))
+  region          = local.src.region
   type            = local.cfg.simulation.instance_type
   image           = local.cfg.simulation.image
-  root_pass       = random_password.root.result
+  root_pass       = var.root_password
   authorized_keys = local.admin_keys
 
   metadata {
@@ -68,6 +63,7 @@ resource "local_file" "ansible_hosts" {
         ansible_user                 = "root"
         ansible_ssh_private_key_file = "~/.ssh/id_ed25519"
         ansible_ssh_common_args      = "-o StrictHostKeyChecking=no"
+        ansible_python_interpreter   = "/usr/bin/python3"
       }
       children = {
         sources = {

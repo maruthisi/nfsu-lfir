@@ -22,6 +22,12 @@ Two-stage pipeline:
 - Ansible logs in as root with `~/.ssh/id_ed25519` (your management key). If your key
   is elsewhere, change `ansible_ssh_private_key_file` in the `local_file "ansible_hosts"`
   block of `iac/opentofu/main.tf` (the inventory is regenerated each apply).
+- Put the file you want to send at **`iac/ansible/files/episode1.mp4`**:
+  ```
+  cp /path/to/episode1.mp4 iac/ansible/files/episode1.mp4
+  echo 'iac/ansible/files/episode1.mp4' >> .gitignore   # if large, keep it out of git
+  ```
+  (The name is set by `drop_filename` in `iac/ansible/playbooks/drop_files.yml`.)
 
 ---
 
@@ -49,8 +55,9 @@ ansible-playbook -i inventory/hosts.yml playbooks/drop_files.yml
 ```
 
 `ping` should return `SUCCESS`/`pong` from every host. The playbook deploys a cron'd
-sender onto each source that scp's `malicious_test.txt` to every mirror's `/var/data`
-at random 3-4 min intervals for a 15-min window, then self-stops.
+sender onto each source that scp's `episode1.mp4` to every mirror's `/var/data` at
+random 3-4 min intervals for a 15-min window, then self-stops.
+(Make sure `iac/ansible/files/episode1.mp4` exists first — see Prerequisites.)
 
 ---
 
@@ -62,7 +69,7 @@ Wait ~4-5 min for the first drop, then:
 ```
 http://<MIRROR_IP>/
 ```
-Expect `malicious_test.txt` listed by nginx.
+Expect `episode1.mp4` listed by nginx — downloadable at `http://<MIRROR_IP>/episode1.mp4`.
 
 **Over SSH — check every mirror at once:**
 ```bash
@@ -71,7 +78,7 @@ for ip in $(awk -F, '$2=="mirror"{print $4}' iac/opentofu/inventory.csv | tr -d 
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@$ip 'ls -l /var/data/' 2>/dev/null
 done
 ```
-Expect `malicious_test.txt` on every mirror.
+Expect `episode1.mp4` on every mirror.
 
 **Check a source is armed (optional):**
 ```bash
@@ -82,7 +89,33 @@ Expect the `* * * * * /opt/sim/drop.sh` cron line and the files.
 
 ---
 
-## Step 4 — Tear everything down (from repo root)
+## Step 4 — Give students access to their mirror
+
+Each student investigates one mirror. Hand them a mirror IP (from
+`iac/opentofu/inventory.csv`). Two ways to log in:
+
+**A. Password (no SSH key needed) — simplest for students:**
+```bash
+ssh analyst@<their-mirror-ip>        # password: Analyst@2026
+```
+Note: the analyst password is the same on every mirror, so any student could reach
+any mirror (no isolation).
+
+**B. Per-student key (isolated) — each key opens only its own mirror:**
+Email the student their private key `keys/students/mirror-NN` (see
+`iac/opentofu/handout.csv` for the exact IP + ready command), and they run:
+```bash
+ssh -i mirror-NN analyst@<their-mirror-ip>
+```
+
+Credentials (defaults — override in `.env` with `TF_VAR_analyst_password` /
+`TF_VAR_root_password`, applies to VMs created by the next `apply`):
+- **analyst** (students): `Analyst@2026`
+- **root** (admin / Linode console): `Nfsu@Lfir2026`
+
+---
+
+## Step 5 — Tear everything down (from repo root)
 
 ```bash
 bash iac/opentofu/destroy.sh

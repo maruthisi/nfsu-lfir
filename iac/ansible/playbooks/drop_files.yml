@@ -26,11 +26,11 @@
   become: true
   vars:
     repo_root: "{{ playbook_dir }}/../../.."   # iac/ansible/playbooks -> repo root
-    drop_filename: malicious_test.txt
+    drop_filename: episode1.mp4                 # put this file in iac/ansible/files/
     drop_dest_dir: /var/data                    # must match the nginx content dir
     drop_min_interval: 180                      # 3 min
     drop_max_interval: 240                      # 4 min
-    drop_duration: 900                          # 15 min hard window
+    drop_duration: 7200                         # 2 hour hard window
   tasks:
     - name: Ensure cron + scp are installed
       ansible.builtin.apt:
@@ -58,8 +58,8 @@
 
     - name: Install the payload into /var/data
       ansible.builtin.copy:
-        src: "{{ playbook_dir }}/../files/malicious_test.txt"
-        dest: "{{ drop_dest_dir }}/malicious_test.txt"
+        src: "{{ playbook_dir }}/../files/{{ drop_filename }}"
+        dest: "{{ drop_dest_dir }}/{{ drop_filename }}"
         mode: "0644"
 
     - name: Install the sender scripts
@@ -70,6 +70,12 @@
       loop:
         - drop.sh
         - setup_once.sh
+
+    - name: Create /etc/simulation
+      ansible.builtin.file:
+        path: /etc/simulation
+        state: directory
+        mode: "0755"
 
     - name: Write /etc/simulation/config
       ansible.builtin.template:
