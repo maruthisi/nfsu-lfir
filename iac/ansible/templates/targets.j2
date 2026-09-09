@@ -1,0 +1,2 @@
+{% for h in groups['mirrors'] %}{{ hostvars[h].ansible_host }}
+{% endfor %}

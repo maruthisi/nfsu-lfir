@@ -1,0 +1,100 @@
+---
+# File-drop simulation (moved out of Terraform into Ansible).
+#
+# Play 1 preps /var/data on every mirror so the drop can land there (and nginx
+# serves it). Play 2 deploys a cron'd sender onto every source: it scp's the
+# payload to all mirrors at a randomized interval for a fixed window, then stops.
+# The file originates from the SOURCE's IP, so each mirror's sshd log naturally
+# records the source that sent it.
+
+- name: Prepare drop directory on mirrors
+  hosts: mirrors
+  become: true
+  vars:
+    drop_dest_dir: /var/data
+  tasks:
+    - name: Ensure drop dir exists and is writable by the scp user (analyst)
+      ansible.builtin.file:
+        path: "{{ drop_dest_dir }}"
+        state: directory
+        owner: analyst
+        group: analyst
+        mode: "0755"
+
+- name: Deploy the file-drop sender onto sources
+  hosts: sources
+  become: true
+  vars:
+    repo_root: "{{ playbook_dir }}/../../.."   # iac/ansible/playbooks -> repo root
+    drop_filename: malicious_test.txt
+    drop_dest_dir: /var/data                    # must match the nginx content dir
+    drop_min_interval: 180                      # 3 min
+    drop_max_interval: 240                      # 4 min
+    drop_duration: 900                          # 15 min hard window
+  tasks:
+    - name: Ensure cron + scp are installed
+      ansible.builtin.apt:
+        name: [cron, openssh-client]
+        state: present
+        update_cache: true
+
+    - name: Create /opt/sim
+      ansible.builtin.file:
+        path: /opt/sim
+        state: directory
+        mode: "0755"
+
+    - name: Install the shared attack private key (source -> mirror auth)
+      ansible.builtin.copy:
+        src: "{{ repo_root }}/keys/sim_key"
+        dest: /opt/sim/sim_key
+        mode: "0600"
+
+    - name: Create /var/data on the source (holds the payload it sends)
+      ansible.builtin.file:
+        path: "{{ drop_dest_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Install the payload into /var/data
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../files/malicious_test.txt"
+        dest: "{{ drop_dest_dir }}/malicious_test.txt"
+        mode: "0644"
+
+    - name: Install the sender scripts
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../files/{{ item }}"
+        dest: "/opt/sim/{{ item }}"
+        mode: "0755"
+      loop:
+        - drop.sh
+        - setup_once.sh
+
+    - name: Write /etc/simulation/config
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/sim_config.j2"
+        dest: /etc/simulation/config
+        mode: "0644"
+
+    - name: Write /etc/simulation/targets.txt (mirror IPs from inventory)
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/targets.j2"
+        dest: /etc/simulation/targets.txt
+        mode: "0644"
+
+    - name: Fix the simulation window and first drop time
+      ansible.builtin.command: bash /opt/sim/setup_once.sh
+      changed_when: true
+
+    - name: Schedule the sender every minute
+      ansible.builtin.cron:
+        name: sim-drop
+        job: /opt/sim/drop.sh
+        minute: "*"
+
+    - name: Ensure cron is enabled and running
+      ansible.builtin.systemd:
+        name: cron
+        enabled: true
+        state: started

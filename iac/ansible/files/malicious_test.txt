@@ -1,0 +1,7 @@
+Controlled Security Simulation
+==============================
+
+This is a harmless test file, part of an authorized cyber-security exercise.
+It contains no code, no macros, and no executable content -- just this text.
+
+Simulation ID: NFSU-LFIR-2026

@@ -20,8 +20,8 @@
       ansible.builtin.file:
         path: "{{ nginx_content_dir }}"
         state: directory
-        owner: root
-        group: root
+        owner: analyst
+        group: analyst
         mode: "0755"
 
     - name: Create Nginx site configuration
