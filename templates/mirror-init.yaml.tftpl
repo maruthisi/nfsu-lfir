@@ -1,0 +1,17 @@
+#cloud-config
+# Mirror node: a normal Debian box with an 'analyst' login. No receiver code,
+# no custom logging. sshd + rsyslog already write /var/log/auth.log naturally.
+users:
+  - default
+  - name: analyst
+    groups: sudo
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${sim_pubkey}
+      - ${student_pubkey}
+
+runcmd:
+  # Hidden drop folder the sources scp into (owned by analyst so scp can write).
+  - install -d -o analyst -g analyst -m 755 /var/lib/genuine

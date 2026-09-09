@@ -1,0 +1,13 @@
+# Shared settings for the whole simulation. Per-role scaling lives in
+# source.yaml (machines under attack) and mirror.yaml (the malicious senders).
+
+simulation:
+  duration_seconds: 900          # hard cap. 900 = 15 min. 1800 = 30 min.
+  instance_type: g6-nanode-1     # cheapest Linode plan (~$5/mo each)
+  image: linode/debian12         # fast boot; ships rsyslog (/var/log/auth.log)
+
+file_transfer:
+  filename: "malicious_test.txt" # edit malicious_test.txt to change contents
+  min_interval_seconds: 180      # 3 min
+  max_interval_seconds: 240      # 4 min
+  dest_dir: "/var/data"   # hidden drop folder on each mirror (students don't know this)

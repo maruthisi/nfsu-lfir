@@ -1,0 +1,8 @@
+# SOURCE machines: the malicious senders (origin of the file). To add one more,
+# bump count AND add a region (source i uses regions[i % len]). Keep them out of
+# India so the source IP looks foreign. If a region is "restricted" for a new
+# account, swap it for another US one (us-west, us-ord, us-sea, us-iad, us-lax...).
+count: 2
+regions:
+  - us-east                      # Newark, NJ
+  - us-central                   # Dallas, TX

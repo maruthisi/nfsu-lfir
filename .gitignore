@@ -1,0 +1,10 @@
+# secrets and state — never commit
+keys/
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+inventory.csv
+.env
+handout.csv
