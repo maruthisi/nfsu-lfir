@@ -1,5 +1,5 @@
 # secrets and state — never commit
-keys/
+
 *.tfstate
 *.tfstate.*
 .terraform/

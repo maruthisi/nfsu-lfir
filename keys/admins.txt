@@ -1,0 +1,3 @@
+# Extra admin SSH public keys — one per line. Each gets root login on every VM.
+# Lines starting with # are ignored.
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPUnJ0IiWfpezh1IpRHp3wIl6iAG7Pq+3aoDs2fDs4bS maruthisi@siri
