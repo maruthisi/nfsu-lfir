@@ -1,0 +1,79 @@
+---
+- name: Configure Nginx on piracy mirror servers
+  hosts: all
+  become: true
+
+  vars:
+    nginx_content_dir: /var/data
+    nginx_log_dir: /var/log/nginx
+    nginx_server_name: "_"
+
+  tasks:
+
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Create CTF content directory
+      ansible.builtin.file:
+        path: "{{ nginx_content_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Create Nginx site configuration
+      ansible.builtin.copy:
+        dest: /etc/nginx/sites-available/lfir-demo
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          server {
+              listen 80;
+              listen [::]:80;
+
+              server_name {{ nginx_server_name }};
+
+              root {{ nginx_content_dir }};
+
+              location / {
+                  autoindex on;
+                  autoindex_exact_size off;
+                  autoindex_localtime on;
+              }
+          }
+      notify: Reload nginx
+
+    - name: Enable lfir-demo Nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/lfir-demo
+        dest: /etc/nginx/sites-enabled/lfir-demo
+        state: link
+      notify: Reload nginx
+
+    - name: Remove default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Ensure Nginx is enabled and running
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: true
+        state: started
+
+  handlers:
+
+    - name: Test Nginx configuration
+      ansible.builtin.command:
+        cmd: nginx -t
+      changed_when: false
+
+    - name: Reload nginx
+      ansible.builtin.systemd:
+        name: nginx
+        state: reloaded
